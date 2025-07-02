@@ -34,9 +34,24 @@ print_error() {
 
 # Function to detect OS
 detect_os() {
+    # Debug output
+    echo "Debug: Checking WSL indicators..." >&2
+    
+    # Check multiple WSL indicators
     if [[ -f /proc/version ]] && grep -q Microsoft /proc/version; then
+        echo "Debug: Found Microsoft in /proc/version" >&2
+        echo "wsl"
+    elif [[ -f /proc/sys/kernel/osrelease ]] && grep -q Microsoft /proc/sys/kernel/osrelease; then
+        echo "Debug: Found Microsoft in /proc/sys/kernel/osrelease" >&2
+        echo "wsl"
+    elif [[ -n "$WSL_DISTRO_NAME" ]] || [[ -n "$WSL_INTEROP" ]]; then
+        echo "Debug: Found WSL environment variables" >&2
+        echo "wsl"
+    elif [[ -d /mnt/wslg ]] || [[ -d /mnt/c ]]; then
+        echo "Debug: Found WSL mount points" >&2
         echo "wsl"
     else
+        echo "Debug: No WSL indicators found, assuming Linux" >&2
         echo "linux"
     fi
 }
