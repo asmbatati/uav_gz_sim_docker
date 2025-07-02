@@ -56,13 +56,6 @@ services:
       - default
       - gpu
       - cpu
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     command: >
       bash -c "
         export DEV_DIR=/home/user/shared_volume &&
