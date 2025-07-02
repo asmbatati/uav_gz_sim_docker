@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+  # Main PX4 ROS2 development environment
+  px4-dev:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile_simulation-ubuntu24
+    image: px4-dev-simulation-ubuntu24
+    container_name: px4_ros2_jazzy
+    hostname: px4-dev
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - LOCAL_USER_ID=${UID:-1000}
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/usr/local/share/middleware_profiles/rtps_udp_profile.xml
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - GIT_USER=${GIT_USER:-}
+      - GIT_TOKEN=${GIT_TOKEN:-}
+      - SUDO_PASSWORD=user
+      # WSL-specific environment variables
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}
+      - PULSE_SERVER=${PULSE_SERVER:-}
+      - MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+    volumes:
+      # Shared workspace
+      - px4_workspace:/home/user/shared_volume
+      # Display forwarding
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /etc/localtime:/etc/localtime:ro
+      # Device access
+      - /dev:/dev
+      # WSL-specific mounts (will be ignored on Linux)
+      - /mnt/wslg:/mnt/wslg
+      - /usr/lib/wsl:/usr/lib/wsl
+    devices:
+      # GPU devices (conditional)
+      - /dev/dxg
+      - /dev/dri/card0
+      - /dev/dri/renderD128
+    ports:
+      - "14550:14550"  # MAVLink
+      - "14556:14556"  # MAVLink
+      - "8888:8888"    # XRCE-DDS Agent
+    networks:
+      - px4_network
+    working_dir: /home/user/shared_volume
+    user: "1000:1000"
+    privileged: true
+    stdin_open: true
+    tty: true
+    profiles:
+      - default
+      - gpu
+      - cpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      bash -c "
+        export DEV_DIR=/home/user/shared_volume &&
+        export PX4_DIR=$$DEV_DIR/PX4-Autopilot &&
+        export ROS2_WS=$$DEV_DIR/ros2_ws &&
+        export OSQP_SRC=$$DEV_DIR &&
+        source /home/user/.bashrc &&
+        if [ -f '/home/user/shared_volume/ros2_ws/install/setup.bash' ]; then
+          source /home/user/shared_volume/ros2_ws/install/setup.bash;
+        fi &&
+        /bin/bash
+      "
+
+  # XRCE-DDS Agent service (optional)
+  xrce-agent:
+    image: px4-dev-simulation-ubuntu24
+    container_name: xrce-dds-agent
+    hostname: xrce-agent
+    command: >
+      bash -c "
+        MicroXRCEAgent udp4 -p 8888
+      "
+    ports:
+      - "8888:8888"
+    networks:
+      - px4_network
+    profiles:
+      - xrce-agent
+    depends_on:
+      - px4-dev
+
+  # QGroundControl (optional - for GUI ground control)
+  qgroundcontrol:
+    image: px4-dev-simulation-ubuntu24
+    container_name: qgroundcontrol
+    hostname: qgc
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - qgc_data:/home/user/.config/QGroundControl
+    ports:
+      - "5760:5760"  # QGC communication
+    networks:
+      - px4_network
+    profiles:
+      - qgc
+    command: >
+      bash -c "
+        if [ ! -f /usr/bin/QGroundControl ]; then
+          echo 'Installing QGroundControl...' &&
+          wget -qO- https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage -O /usr/bin/QGroundControl &&
+          chmod +x /usr/bin/QGroundControl;
+        fi &&
+        /usr/bin/QGroundControl
+      "
+
+  # ROS2 Bridge service (optional - for external ROS2 communication)
+  ros2-bridge:
+    image: px4-dev-simulation-ubuntu24
+    container_name: ros2-bridge
+    hostname: ros2-bridge
+    environment:
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+    volumes:
+      - px4_workspace:/home/user/shared_volume
+    networks:
+      - px4_network
+    profiles:
+      - bridge
+    depends_on:
+      - px4-dev
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        source /home/user/shared_volume/ros2_ws/install/setup.bash &&
+        ros2 run ros_gz_bridge parameter_bridge
+      "
+
+# Named volumes for persistent data
+volumes:
+  px4_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME}/px4_ros2_jazzy_shared_volume
+  qgc_data:
+    driver: local
+
+# Custom network for service communication
+networks:
+  px4_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

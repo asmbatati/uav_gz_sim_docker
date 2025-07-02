@@ -38,7 +38,51 @@ This builds a comprehensive Docker image with the complete PX4 development envir
 
 ## Run the Container
 
-### Linux
+### Option 1: Docker Compose (Recommended)
+
+The Docker Compose setup provides the most flexible and powerful way to run the environment:
+
+```bash
+# Make the script executable
+chmod +x docker-compose-run.sh
+
+# Start with auto-detection (recommended)
+./docker-compose-run.sh up
+
+# Start with specific profiles
+./docker-compose-run.sh up --profile gpu
+./docker-compose-run.sh up --with-qgc
+./docker-compose-run.sh up --with-xrce --with-bridge
+
+# Access the container
+./docker-compose-run.sh shell
+
+# View logs
+./docker-compose-run.sh logs
+
+# Stop services
+./docker-compose-run.sh down
+```
+
+#### Docker Compose Benefits:
+- **Automatic Environment Detection**: Detects OS (Linux/WSL) and GPU availability
+- **Service Profiles**: Choose which services to run (GPU, QGC, XRCE-Agent, Bridge)
+- **Persistent Volumes**: Named volumes for data persistence
+- **Service Orchestration**: Proper startup order and dependencies
+- **Easy Management**: Simple commands for start/stop/restart/logs
+- **Multi-Service Support**: Run additional services like QGroundControl
+
+#### Available Profiles:
+- `default` - Main development environment
+- `gpu` - With GPU acceleration
+- `cpu` - CPU-only mode
+- `xrce-agent` - Include XRCE-DDS Agent service
+- `qgc` - Include QGroundControl
+- `bridge` - Include ROS2 Bridge service
+
+### Option 2: Direct Docker Commands
+
+#### Linux
 ```bash
 # Standard run (CPU only)
 ./docker_run.sh
@@ -47,10 +91,17 @@ This builds a comprehensive Docker image with the complete PX4 development envir
 ./docker_run_nvidia.sh
 ```
 
-### WSL2 (Windows)
+#### WSL2 (Windows)
 ```bash
 # WSL2 with full GPU support and display forwarding
 ./docker_run_wsl.sh
+```
+
+### Option 3: Unified Script
+
+```bash
+# Auto-detects environment and applies appropriate configuration
+./docker_run_unified.sh
 ```
 
 The WSL script automatically handles:
@@ -70,6 +121,11 @@ The WSL script automatically handles:
 
 1. **Enter the container**:
    ```bash
+   # Using Docker Compose (recommended)
+   ./docker-compose-run.sh up
+   ./docker-compose-run.sh shell
+   
+   # Or using direct scripts
    ./docker_run_wsl.sh  # or ./docker_run.sh on Linux
    ```
 
@@ -90,7 +146,7 @@ The WSL script automatically handles:
    make px4_sitl gz_x500
    ```
 
-5. **Run XRCE-DDS Agent** (in a new terminal):
+5. **Run XRCE-DDS Agent** (if not using Docker Compose):
    ```bash
    MicroXRCEAgent udp4 -p 8888
    ```
@@ -148,3 +204,8 @@ The environment automatically sources:
 - Check Docker daemon is running
 - Ensure sufficient disk space for the large simulation image
 - Verify shared volume permissions
+
+### Docker Compose Issues
+- Ensure Docker Compose is installed: `docker-compose --version`
+- Check profiles are correctly specified
+- Use `./docker-compose-run.sh logs` to debug service issues
