@@ -66,7 +66,7 @@ COPY scripts/requirements.txt /tmp/requirements.txt
 #
 # Install PX4 dev requirements
 #
-RUN /tmp/px4_dev.sh
+RUN chmod +x /tmp/px4_dev.sh && /tmp/px4_dev.sh
 
 # create user with id 1000 (or use existing user if UID 1000 exists)
 RUN if id 1000 >/dev/null 2>&1; then \
@@ -83,7 +83,7 @@ RUN if id 1000 >/dev/null 2>&1; then \
     adduser user sudo
 
 # Some QT-Apps/Gazebo don't not show controls without this
-ENV QT_X11_NO_MITSHM 1
+ENV QT_X11_NO_MITSHM=1
 
 # Use UTF8 encoding in java tools (needed to compile jMAVSim)
 ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
