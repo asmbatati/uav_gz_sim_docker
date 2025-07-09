@@ -201,41 +201,152 @@ main() {
     case $COMMAND in
         up)
             print_status "Starting services with profiles: ${PROFILES[*]}..."
-            docker-compose --profile $(IFS=,; echo "${PROFILES[*]}") up -d
-            print_success "Services started successfully!"
-            print_status "To access the container: $0 shell"
+            
+            # Build profile arguments correctly
+            PROFILE_ARGS=""
+            for profile in "${PROFILES[@]}"; do
+                PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
+            done
+            
+            print_status "Docker Compose command: docker-compose $PROFILE_ARGS up -d"
+            
+            # Check if Docker Compose is available
+            if ! command -v docker-compose &> /dev/null; then
+                print_error "docker-compose not found. Please install Docker Compose."
+                exit 1
+            fi
+            
+            # Start services
+            docker-compose $PROFILE_ARGS up -d
+            
+            if [ $? -eq 0 ]; then
+                print_success "Services started successfully!"
+                print_status "Active containers:"
+                docker-compose ps
+                echo ""
+                print_status "To access the main container: $0 shell"
+                print_status "To view logs: $0 logs"
+                print_status "To stop services: $0 down"
+            else
+                print_error "Failed to start services. Check the logs with: $0 logs"
+                exit 1
+            fi
             ;;
         down)
             print_status "Stopping all services..."
             docker-compose down
-            print_success "Services stopped successfully!"
+            if [ $? -eq 0 ]; then
+                print_success "Services stopped successfully!"
+            else
+                print_error "Failed to stop some services."
+                exit 1
+            fi
             ;;
         restart)
             print_status "Restarting services..."
-            docker-compose restart
-            print_success "Services restarted successfully!"
+            
+            # Get current profiles from running containers
+            RUNNING_PROFILES=()
+            if docker-compose ps --services 2>/dev/null | grep -q px4-dev-gpu; then
+                RUNNING_PROFILES+=("gpu")
+            elif docker-compose ps --services 2>/dev/null | grep -q px4-dev; then
+                RUNNING_PROFILES+=("default")
+            fi
+            
+            if docker-compose ps --services 2>/dev/null | grep -q xrce-agent; then
+                RUNNING_PROFILES+=("xrce-agent")
+            fi
+            
+            if docker-compose ps --services 2>/dev/null | grep -q mavros-bridge; then
+                RUNNING_PROFILES+=("mavros")
+            fi
+            
+            if docker-compose ps --services 2>/dev/null | grep -q qgroundcontrol; then
+                RUNNING_PROFILES+=("qgc")
+            fi
+            
+            if docker-compose ps --services 2>/dev/null | grep -q ros2-bridge; then
+                RUNNING_PROFILES+=("bridge")
+            fi
+            
+            # Use detected profiles or fallback to current PROFILES
+            if [ ${#RUNNING_PROFILES[@]} -gt 0 ]; then
+                PROFILES=("${RUNNING_PROFILES[@]}")
+                print_status "Detected running profiles: ${PROFILES[*]}"
+            fi
+            
+            # Build profile arguments
+            PROFILE_ARGS=""
+            for profile in "${PROFILES[@]}"; do
+                PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
+            done
+            
+            docker-compose $PROFILE_ARGS restart
+            
+            if [ $? -eq 0 ]; then
+                print_success "Services restarted successfully!"
+            else
+                print_error "Failed to restart services."
+                exit 1
+            fi
             ;;
         logs)
             print_status "Showing logs..."
-            docker-compose logs -f
+            if [[ ${#PROFILES[@]} -gt 0 ]]; then
+                PROFILE_ARGS=""
+                for profile in "${PROFILES[@]}"; do
+                    PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
+                done
+                docker-compose $PROFILE_ARGS logs -f
+            else
+                docker-compose logs -f
+            fi
             ;;
         shell)
             print_status "Opening shell in main container..."
-            docker-compose exec px4-dev bash
+            
+            # Check if GPU container is running first
+            if docker-compose ps px4-dev-gpu 2>/dev/null | grep -q "Up"; then
+                print_status "Connecting to GPU-enabled container..."
+                docker-compose exec px4-dev-gpu bash
+            elif docker-compose ps px4-dev 2>/dev/null | grep -q "Up"; then
+                print_status "Connecting to main container..."
+                docker-compose exec px4-dev bash
+            else
+                print_error "No running px4-dev container found. Start services first with: $0 up"
+                exit 1
+            fi
             ;;
         build)
             print_status "Building Docker image..."
-            docker-compose build
-            print_success "Image built successfully!"
+            cd docker 2>/dev/null || {
+                print_error "Docker directory not found. Make sure you're in the px4_ros2_jazzy_docker directory."
+                exit 1
+            }
+            
+            if make px4-dev-simulation-ubuntu24; then
+                print_success "Image built successfully!"
+            else
+                print_error "Failed to build Docker image."
+                exit 1
+            fi
             ;;
         clean)
-            print_warning "This will remove ALL containers and volumes!"
+            print_warning "This will remove ALL containers, volumes, and images!"
             read -p "Are you sure? (y/N): " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 print_status "Cleaning up..."
-                docker-compose down -v --remove-orphans
-                docker system prune -f
+                
+                # Stop and remove containers
+                docker-compose down -v --remove-orphans 2>/dev/null || true
+                
+                # Remove the specific image
+                docker rmi px4-dev-simulation-ubuntu24 2>/dev/null || true
+                
+                # Clean up Docker system
+                docker system prune -f --volumes
+                
                 print_success "Cleanup completed!"
             else
                 print_status "Cleanup cancelled."

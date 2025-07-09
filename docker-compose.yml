@@ -14,6 +14,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - NVIDIA_DRIVER_CAPABILITIES=all
       - LOCAL_USER_ID=${UID:-1000}
+      - LOCAL_GROUP_ID=${GID:-1000}
       - FASTRTPS_DEFAULT_PROFILES_FILE=/usr/local/share/middleware_profiles/rtps_udp_profile.xml
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
       - GIT_USER=${GIT_USER:-}
@@ -31,20 +32,23 @@ services:
       # Display forwarding
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /etc/localtime:/etc/localtime:ro
-      # Device access
+      # Device access (with safety checks)
       - /dev:/dev
       # WSL-specific mounts (will be ignored on Linux)
-      - /mnt/wslg:/mnt/wslg
-      - /usr/lib/wsl:/usr/lib/wsl
+      - /mnt/wslg:/mnt/wslg:ro
+      - /usr/lib/wsl:/usr/lib/wsl:ro
+      # X11 authentication (Linux)
+      - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
     devices:
-      # GPU devices (conditional)
-      - /dev/dxg
-      - /dev/dri/card0
-      - /dev/dri/renderD128
+      # GPU devices (with error handling)
+      - /dev/dxg:/dev/dxg
+      - /dev/dri:/dev/dri
     ports:
-      - "14550:14550"  # MAVLink
-      - "14556:14556"  # MAVLink
-      - "8888:8888"    # XRCE-DDS Agent
+      - "14550:14550/udp"  # MAVLink
+      - "14556:14556/udp"  # MAVLink 
+      - "14557:14557/udp"  # MAVLink MAVROS
+      - "8888:8888/udp"    # XRCE-DDS Agent
+      - "5760:5760/tcp"    # QGroundControl
     networks:
       - px4_network
     working_dir: /home/user/shared_volume
@@ -54,14 +58,12 @@ services:
     tty: true
     profiles:
       - default
-      - gpu
-      - cpu
     command: >
       bash -c "
         export DEV_DIR=/home/user/shared_volume &&
-        export PX4_DIR=$$DEV_DIR/PX4-Autopilot &&
-        export ROS2_WS=$$DEV_DIR/ros2_ws &&
-        export OSQP_SRC=$$DEV_DIR &&
+        export PX4_DIR=\$$DEV_DIR/PX4-Autopilot &&
+        export ROS2_WS=\$$DEV_DIR/ros2_ws &&
+        export OSQP_SRC=\$$DEV_DIR &&
         source /home/user/.bashrc &&
         if [ -f '/home/user/shared_volume/ros2_ws/install/setup.bash' ]; then
           source /home/user/shared_volume/ros2_ws/install/setup.bash;
@@ -69,23 +71,66 @@ services:
         /bin/bash
       "
 
+  # GPU-enabled version
+  px4-dev-gpu:
+    extends: px4-dev
+    container_name: px4_ros2_jazzy_gpu
+    hostname: px4-dev-gpu
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    profiles:
+      - gpu
+
   # XRCE-DDS Agent service (optional)
   xrce-agent:
     image: px4-dev-simulation-ubuntu24
     container_name: xrce-dds-agent
     hostname: xrce-agent
+    restart: unless-stopped
     command: >
       bash -c "
-        MicroXRCEAgent udp4 -p 8888
+        echo 'Starting XRCE-DDS Agent on port 8888...' &&
+        MicroXRCEAgent udp4 -p 8888 -v6
       "
     ports:
-      - "8888:8888"
+      - "8888:8888/udp"
     networks:
       - px4_network
     profiles:
       - xrce-agent
     depends_on:
       - px4-dev
+
+  # MAVROS bridge service (optional)
+  mavros-bridge:
+    image: px4-dev-simulation-ubuntu24
+    container_name: mavros-bridge
+    hostname: mavros-bridge
+    restart: unless-stopped
+    environment:
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+    volumes:
+      - px4_workspace:/home/user/shared_volume
+    ports:
+      - "14540:14540/udp"  # MAVROS FCU connection
+      - "14557:14557/udp"  # MAVROS GCS connection
+    networks:
+      - px4_network
+    profiles:
+      - mavros
+    depends_on:
+      - px4-dev
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        if [ -f '/home/user/shared_volume/ros2_ws/install/setup.bash' ]; then
+          source /home/user/shared_volume/ros2_ws/install/setup.bash;
+        fi &&
+        echo 'Starting MAVROS bridge...' &&
+        ros2 launch mavros px4.launch fcu_url:=udp://:14540@127.0.0.1:14557
+      "
 
   # QGroundControl (optional - for GUI ground control)
   qgroundcontrol:
@@ -95,23 +140,28 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
+      - /mnt/wslg:/mnt/wslg:ro
       - qgc_data:/home/user/.config/QGroundControl
     ports:
-      - "5760:5760"  # QGC communication
+      - "5760:5760/tcp"  # QGC communication
     networks:
       - px4_network
     profiles:
       - qgc
     command: >
       bash -c "
-        if [ ! -f /usr/bin/QGroundControl ]; then
-          echo 'Installing QGroundControl...' &&
-          wget -qO- https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage -O /usr/bin/QGroundControl &&
-          chmod +x /usr/bin/QGroundControl;
+        if [ ! -f /home/user/shared_volume/QGroundControl.AppImage ]; then
+          echo 'Downloading QGroundControl...' &&
+          cd /home/user/shared_volume &&
+          wget -qO QGroundControl.AppImage 'https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage' &&
+          chmod +x QGroundControl.AppImage;
         fi &&
-        /usr/bin/QGroundControl
+        echo 'Starting QGroundControl...' &&
+        cd /home/user/shared_volume &&
+        ./QGroundControl.AppImage
       "
 
   # ROS2 Bridge service (optional - for external ROS2 communication)
@@ -119,8 +169,10 @@ services:
     image: px4-dev-simulation-ubuntu24
     container_name: ros2-bridge
     hostname: ros2-bridge
+    restart: unless-stopped
     environment:
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - GZ_VERSION=harmonic
     volumes:
       - px4_workspace:/home/user/shared_volume
     networks:
@@ -132,7 +184,10 @@ services:
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
-        source /home/user/shared_volume/ros2_ws/install/setup.bash &&
+        if [ -f '/home/user/shared_volume/ros2_ws/install/setup.bash' ]; then
+          source /home/user/shared_volume/ros2_ws/install/setup.bash;
+        fi &&
+        echo 'Starting ROS2-Gazebo bridge...' &&
         ros2 run ros_gz_bridge parameter_bridge
       "
 
@@ -143,6 +198,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
+      # Updated to match main README path
       device: ${HOME}/px4_ros2_jazzy_shared_volume
   qgc_data:
     driver: local
@@ -153,4 +209,5 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16 
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1 

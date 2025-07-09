@@ -120,18 +120,36 @@ setup_display() {
         # WSL2 display setup
         print_status "Setting up WSL2 display forwarding..."
         DOCKER_OPTS="$DOCKER_OPTS -v /tmp/.X11-unix:/tmp/.X11-unix"
-        DOCKER_OPTS="$DOCKER_OPTS -v /mnt/wslg:/mnt/wslg"
         DOCKER_OPTS="$DOCKER_OPTS -e DISPLAY=$DISPLAY"
         DOCKER_OPTS="$DOCKER_OPTS -e WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
         DOCKER_OPTS="$DOCKER_OPTS -e XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
         DOCKER_OPTS="$DOCKER_OPTS -e PULSE_SERVER=$PULSE_SERVER"
         
-        # WSL GPU device access
-        DOCKER_OPTS="$DOCKER_OPTS -v /usr/lib/wsl:/usr/lib/wsl"
-        DOCKER_OPTS="$DOCKER_OPTS --device=/dev/dxg"
-        DOCKER_OPTS="$DOCKER_OPTS -e LD_LIBRARY_PATH=/usr/lib/wsl/lib"
-        DOCKER_OPTS="$DOCKER_OPTS --device /dev/dri/card0"
-        DOCKER_OPTS="$DOCKER_OPTS --device /dev/dri/renderD128"
+        # WSL mounts (check if they exist)
+        if [[ -d /mnt/wslg ]]; then
+            DOCKER_OPTS="$DOCKER_OPTS -v /mnt/wslg:/mnt/wslg"
+        fi
+        
+        if [[ -d /usr/lib/wsl ]]; then
+            DOCKER_OPTS="$DOCKER_OPTS -v /usr/lib/wsl:/usr/lib/wsl"
+            DOCKER_OPTS="$DOCKER_OPTS -e LD_LIBRARY_PATH=/usr/lib/wsl/lib"
+        fi
+        
+        # WSL GPU device access (with error handling)
+        if [[ -e /dev/dxg ]]; then
+            DOCKER_OPTS="$DOCKER_OPTS --device=/dev/dxg"
+        else
+            print_warning "WSL GPU device /dev/dxg not found - GPU acceleration may not work"
+        fi
+        
+        if [[ -e /dev/dri/card0 ]]; then
+            DOCKER_OPTS="$DOCKER_OPTS --device /dev/dri/card0"
+        fi
+        
+        if [[ -e /dev/dri/renderD128 ]]; then
+            DOCKER_OPTS="$DOCKER_OPTS --device /dev/dri/renderD128"
+        fi
+        
         DOCKER_OPTS="$DOCKER_OPTS -e MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA"
         
     else
@@ -140,14 +158,14 @@ setup_display() {
         
         # Setup X11 authentication
         XAUTH=/tmp/.docker.xauth
-        xauth_list=$(xauth nlist :0 | sed -e 's/^..../ffff/' 2>/dev/null || true)
+        xauth_list=$(xauth nlist :0 2>/dev/null | sed -e 's/^..../ffff/' || true)
         
         if [[ ! -f $XAUTH ]]; then
             print_status "Creating X11 authentication file..."
             touch $XAUTH
             chmod a+r $XAUTH
             if [[ ! -z "$xauth_list" ]]; then
-                echo $xauth_list | xauth -f $XAUTH nmerge - 2>/dev/null || true
+                echo "$xauth_list" | xauth -f $XAUTH nmerge - 2>/dev/null || true
             fi
         fi
         
@@ -162,6 +180,13 @@ setup_display() {
             xhost +local:docker 2>/dev/null || true
         else
             print_warning "X11 authentication setup failed - GUI applications may not work"
+        fi
+        
+        # Add DRI devices for GPU access (with error handling)
+        if [[ -d /dev/dri ]]; then
+            DOCKER_OPTS="$DOCKER_OPTS --device /dev/dri"
+        else
+            print_warning "DRI devices not found - hardware acceleration may not work"
         fi
     fi
 }
