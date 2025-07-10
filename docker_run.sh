@@ -329,8 +329,44 @@ check_container_status() {
     fi
 }
 
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [OPTIONS] [CONTAINER_NAME]"
+    echo ""
+    echo "Description:"
+    echo "  Launch PX4 ROS2 development environment with automatic OS and GPU detection"
+    echo ""
+    echo "Arguments:"
+    echo "  CONTAINER_NAME          Custom container name (default: px4_ros2_jazzy)"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h              Show this help message"
+    echo ""
+    echo "Environment Variables:"
+    echo "  GIT_USER                Git username for authenticated repository access"
+    echo "  GIT_TOKEN               Git token for authenticated repository access"
+    echo ""
+    echo "Examples:"
+    echo "  $0                      # Start with default container name"
+    echo "  $0 my_px4_dev          # Start with custom container name"
+    echo "  GIT_USER=user GIT_TOKEN=token $0    # Start with git credentials"
+    echo ""
+    echo "Features:"
+    echo "  - Automatic OS detection (Ubuntu/WSL2)"
+    echo "  - Automatic GPU detection (NVIDIA/Generic/CPU-only)"
+    echo "  - Cross-platform display forwarding"
+    echo "  - Persistent workspace volume"
+    echo "  - Container restart/attach functionality"
+}
+
 # Main script
 main() {
+    # Check for help option first
+    if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+        show_usage
+        exit 0
+    fi
+    
     print_header "PX4 ROS2 Jazzy Docker Environment"
     
     # Check Docker installation

@@ -284,8 +284,8 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      # Use absolute path that works across different environments
-      device: ${PWD}/../../../../../../px4_ros2_jazzy_shared_volume
+      # Use WORKSPACE_DIR environment variable or fallback to relative path
+      device: ${WORKSPACE_DIR:-${PWD}/../../../../../..}
   qgc_data:
     driver: local
 

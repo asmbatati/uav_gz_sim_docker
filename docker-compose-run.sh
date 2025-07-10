@@ -116,11 +116,16 @@ setup_environment() {
     
     # Create workspace directory with proper path resolution
     local workspace_dir
-    if [[ -n "$PWD" ]]; then
-        # Use relative path from current directory
-        workspace_dir="$(realpath "$PWD")/../../../../../../px4_ros2_jazzy_shared_volume"
-    else
-        # Fallback to home directory
+    
+    # Get the absolute path to the shared volume directory
+    # From px4_ros2_jazzy_docker directory: go up to ros2_ws/src/uav_gz_sim/px4_ros2_jazzy_docker
+    # Then go up 4 levels to get to px4_ros2_jazzy_shared_volume
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    workspace_dir="$(cd "$script_dir" && cd ../../../.. && pwd)"
+    
+    # Fallback to home directory if path resolution fails
+    if [[ ! -d "$workspace_dir" ]] || [[ "$(basename "$workspace_dir")" != "px4_ros2_jazzy_shared_volume" ]]; then
+        print_warning "Could not resolve workspace path, using fallback"
         workspace_dir="$HOME/px4_ros2_jazzy_shared_volume"
     fi
     
