@@ -1,291 +1,310 @@
 # PX4 ROS2 Jazzy Docker Environment
 
-A comprehensive Docker development environment for PX4 + ROS 2 Jazzy + MAVROS with full simulation support, compatible with both Linux and WSL2.
+A comprehensive, cross-platform Docker environment for PX4 ROS2 development with Gazebo Harmonic simulation. This setup automatically detects your system configuration and provides optimal performance across **Ubuntu**, **WSL2**, and different **CUDA** scenarios.
 
-## What's Included
+## 🚀 Features
 
-* **Ubuntu 24.04** - Latest LTS base
-* **ROS 2 Jazzy Desktop Full** - Complete ROS2 development stack
-* **Gazebo Harmonic** - Latest simulation environment
-* **PX4 Development Tools** - Complete PX4 firmware development environment
-* **MAVROS** - MAVLink-ROS 2 communication bridge
-* **XRCE-DDS Agent & Client** - Native PX4-ROS2 communication bridge
-* **Zenoh Middleware** - High-performance communication middleware
-* **JSBSim** - Advanced flight dynamics model
-* **VS Code** - Integrated development environment
-* **Custom Simulation Models** - X500 drone with Intel RealSense D435
-* **QGroundControl Support** - Ground control station integration
-* **WSL2 Support** - Full GPU acceleration and display forwarding
+- **Cross-Platform Compatibility**: Seamless operation on Ubuntu, WSL2, and other Linux distributions
+- **GPU Acceleration**: Automatic NVIDIA GPU detection and configuration
+- **Permission Management**: Robust user/group handling preventing permission issues
+- **Multiple Communication Bridges**: Support for both XRCE-DDS and MAVROS
+- **Comprehensive Services**: Includes QGroundControl, XRCE-DDS Agent, MAVROS bridge, and ROS2 bridge
+- **Environment Detection**: Automatic OS and GPU detection with appropriate configuration
+- **Error Handling**: Comprehensive error checking and recovery mechanisms
 
-## Prerequisites
+## 📋 Prerequisites
 
-### Linux
-- Docker installed ([Ubuntu Docker installation guide](https://docs.docker.com/engine/install/ubuntu/))
-- NVIDIA Docker support for GPU acceleration (optional but recommended)
-- Docker Compose v2.0+ ([Installation guide](https://docs.docker.com/compose/install/))
-
-### WSL2 (Windows)
-- WSL2 with Ubuntu 22.04/24.04
-- Docker Desktop with WSL2 backend
-- NVIDIA GPU drivers for WSL2 (for GPU acceleration)
-- WSLg for GUI applications
-
-## Build Docker Image
-
+### Ubuntu/Linux
 ```bash
-git clone https://github.com/your-username/px4_ros2_jazzy_docker
-cd px4_ros2_jazzy_docker/docker
-make px4-dev-simulation-ubuntu24
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Install Docker Compose
+sudo apt-get update
+sudo apt-get install docker-compose-plugin
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
 ```
 
-This builds a comprehensive Docker image with:
-- Complete PX4 development environment
-- ROS 2 Jazzy Desktop with MAVROS
-- Gazebo Harmonic simulation tools
-- All necessary communication bridges
-
-## Run the Container
-
-### Option 1: Docker Compose (Recommended)
-
-The Docker Compose setup provides the most flexible and powerful way to run the environment with improved error handling and service management:
-
+### WSL2
 ```bash
-# Make the script executable
-chmod +x docker-compose-run.sh
+# Install Docker Desktop for Windows with WSL2 backend
+# Or install Docker directly in WSL2:
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# Start with auto-detection (recommended)
+# For GPU support in WSL2, install NVIDIA Container Toolkit
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo systemctl restart docker
+```
+
+## 🏃‍♂️ Quick Start
+
+### Using Docker Compose (Recommended)
+```bash
+# Start the development environment (auto-detects GPU)
 ./docker-compose-run.sh up
 
-# Start with specific configurations
-./docker-compose-run.sh up --profile gpu           # GPU acceleration
-./docker-compose-run.sh up --with-qgc              # Include QGroundControl
-./docker-compose-run.sh up --with-mavros           # Include MAVROS bridge
-./docker-compose-run.sh up --with-xrce             # Include XRCE-DDS Agent
-./docker-compose-run.sh up --with-bridge           # Include ROS2-Gazebo bridge
+# Start with specific profiles
+./docker-compose-run.sh up --profile gpu --with-qgc
 
-# Access the container
+# Open shell in container
 ./docker-compose-run.sh shell
 
-# View logs with error details
+# Show logs
 ./docker-compose-run.sh logs
 
 # Stop services
 ./docker-compose-run.sh down
 ```
 
-#### Docker Compose Benefits:
-- **Automatic Environment Detection**: Detects OS (Linux/WSL) and GPU availability
-- **Service Profiles**: Choose which services to run (GPU, QGC, MAVROS, XRCE-Agent, Bridge)
-- **Persistent Volumes**: Named volumes for data persistence  
-- **Service Orchestration**: Proper startup order and dependencies
-- **Easy Management**: Simple commands for start/stop/restart/logs
-- **Error Handling**: Robust error detection and recovery
-- **Multi-Service Support**: Run additional services like QGroundControl and MAVROS
-
-#### Available Profiles:
-- `default` - Main development environment
-- `gpu` - With GPU acceleration (auto-detected)
-- `mavros` - Include MAVROS bridge service
-- `xrce-agent` - Include XRCE-DDS Agent service
-- `qgc` - Include QGroundControl
-- `bridge` - Include ROS2-Gazebo Bridge service
-
-### Option 2: Direct Docker Commands
-
-#### Auto-Detection Script (Recommended)
+### Using Docker Run Script
 ```bash
-# Auto-detects environment and applies appropriate configuration
-./docker_run.sh
-```
-
-#### Manual Platform Selection
-```bash
-# Linux
+# Start container (auto-detects environment)
 ./docker_run.sh
 
-# WSL2 (Windows) - now handled automatically
-./docker_run.sh
+# Start with custom name
+./docker_run.sh my_px4_container
 ```
 
-The unified script automatically handles:
-- **Environment Detection**: Linux vs WSL2
-- **GPU Support**: NVIDIA GPU detection and configuration
-- **Display Forwarding**: X11/Wayland setup
-- **Device Access**: Safe device mounting with error handling
-- **Permission Management**: Proper user/group setup
+## 🔧 Available Profiles
 
-## Container Details
+| Profile | Description | Use Case |
+|---------|-------------|----------|
+| `default` | CPU-only main environment | Basic development |
+| `gpu` | GPU-accelerated environment | High-performance simulation |
+| `xrce-agent` | XRCE-DDS Agent service | PX4 native communication |
+| `mavros` | MAVROS bridge service | Classic MAVLink communication |
+| `qgc` | QGroundControl | Ground control station |
+| `bridge` | ROS2-Gazebo bridge | External ROS2 communication |
 
-* **Shared Volume**: Files persist in `$HOME/px4_ros2_jazzy_shared_volume` (host) ↔ `/home/user/shared_volume` (container)
-* **User Credentials**: Username `user`, Password `user` (sudo access enabled)
-* **Networking**: Host network mode for seamless ROS2 communication
-* **Ports Exposed**: 
-  - 14550, 14556, 14557 (PX4 MAVLink communication)
-  - 8888 (XRCE-DDS Agent)
-  - 5760 (QGroundControl)
-* **Communication**: Both MAVROS and XRCE-DDS bridges available
+## 🎯 Usage Examples
 
-## Quick Start - PX4 Setup
-
-1. **Enter the container**:
-   ```bash
-   # Using Docker Compose (recommended)
-   ./docker-compose-run.sh up
-   ./docker-compose-run.sh shell
-   
-   # Or using direct scripts
-   ./docker_run.sh
-   ```
-
-2. **Navigate to shared volume**:
-   ```bash
-   cd /home/user/shared_volume
-   ```
-
-3. **Clone and setup the simulation environment**:
-   ```bash
-   # Clone the complete simulation repository
-   mkdir -p ros2_ws/src && cd ros2_ws/src
-   git clone https://github.com/asmbatati/uav_gz_sim.git
-   cd uav_gz_sim
-   
-   # Set environment variables
-   export DEV_DIR=/home/user/shared_volume
-   export GIT_USER=your_github_username  # Optional
-   export GIT_TOKEN=your_github_token    # Optional
-   
-   # Run the installation script
-   chmod +x install.sh
-   ./install.sh  # Password is "user" if asked
-   ```
-
-4. **Test the simulation**:
-   ```bash
-   # Launch simulation
-   source ~/shared_volume/ros2_ws/install/setup.bash
-   ros2 launch uav_gz_sim sim.launch.py
-   
-   # In another terminal, start PX4 SITL
-   cd ~/shared_volume/PX4-Autopilot
-   make px4_sitl gz_x500_stereo_cam_3d_lidar
-   ```
-
-## Communication Bridges
-
-The environment supports both communication architectures:
-
-### XRCE-DDS (Native PX4-ROS2 Bridge)
+### Basic Development
 ```bash
-# Start XRCE-DDS Agent (if not using Docker Compose)
-MicroXRCEAgent udp4 -p 8888
+# Start basic environment
+./docker-compose-run.sh up
 
-# PX4 will automatically connect when launched
+# Access container
+./docker-compose-run.sh shell
+
+# Run install script
+cd /home/user/shared_volume/ros2_ws/src/uav_gz_sim && ./install.sh
 ```
 
-### MAVROS (MAVLink Bridge)
+### GPU-Accelerated Development
 ```bash
-# Start MAVROS bridge (if not using Docker Compose)
-ros2 launch mavros px4.launch fcu_url:=udp://:14540@127.0.0.1:14557
+# Start with GPU support
+./docker-compose-run.sh up --profile gpu
 
-# Or start the MAVROS service via Docker Compose
-./docker-compose-run.sh up --with-mavros
+# Start with GPU + QGroundControl
+./docker-compose-run.sh up --profile gpu --with-qgc
 ```
 
-## Custom Simulation Models
-
-The environment includes custom simulation assets in the `simulation/` folder:
-
-- **X500 with RealSense D435**: Complete drone model for computer vision development
-- **Intel RealSense D435**: Standalone depth camera sensor model
-- **Realistic meshes and materials**: High-fidelity visual simulation
-
-### Using Custom Models
-
+### Multi-Service Setup
 ```bash
-# Launch X500 with D435 camera
-make px4_sitl gz_x500_d435
+# Start with all services
+./docker-compose-run.sh up --with-qgc --with-xrce --with-mavros --with-bridge
 
-# The model configuration is in simulation/models/x500_d435/
+# Start specific combination
+./docker-compose-run.sh up --profile gpu --with-mavros --with-qgc
 ```
 
-## ROS 2 Workspace Development
+## 🌍 Environment Detection
 
-The environment automatically sources:
-- `/opt/ros/jazzy/setup.bash`
-- `/home/user/shared_volume/ros2_ws/install/setup.bash` (if available)
+The setup automatically detects and configures:
 
-Both MAVROS and native PX4-ROS2 packages are pre-built and ready to use.
+### Operating System
+- **Ubuntu/Linux**: Native X11 forwarding, direct GPU access
+- **WSL2**: WSLg integration, Windows GPU passthrough
+- **Other Linux**: Generic Linux configuration
 
-## Examples and Tutorials
+### GPU Support
+- **NVIDIA GPU**: Automatic CUDA acceleration setup
+- **Generic GPU**: DRI device access for hardware acceleration  
+- **CPU-only**: Fallback to software rendering
 
-* [PX4 Offboard Control](https://github.com/Jaeyoung-Lim/px4-offboard)
-  - Use `MicroXRCEAgent udp4 -p 8888` for XRCE-DDS communication
-  - Use `ros2 launch mavros px4.launch` for MAVROS communication
-  - Use `make px4_sitl gz_x500` for simulation
-  - QGroundControl can run via Docker service or on host system
+### Permission Handling
+- **User/Group Mapping**: Automatic UID/GID matching
+- **Device Access**: Proper permissions for GPU, USB, serial devices
+- **WSL2 Compatibility**: Special handling for WSL2 permission model
 
-## Troubleshooting
+## 🔧 Configuration
 
-### WSL2 Issues
-- Ensure WSLg is enabled: `wsl --update`
-- Check GPU support: `nvidia-smi` should work in WSL
-- Verify display: `echo $DISPLAY` should show a value
-- Check device permissions: Docker script will attempt to fix automatically
-
-### Linux Issues
-- For NVIDIA GPU: Install `nvidia-docker2` package or use Docker 19.03+
-- For display issues: Run `xhost +local:docker` before starting container
-- Check device access: Ensure `/dev/dri` exists for GPU acceleration
-
-### Container Issues
-- Check Docker daemon is running: `sudo systemctl status docker`
-- Ensure sufficient disk space for the simulation image (>10GB)
-- Verify shared volume permissions: Script handles automatically
-- Use `./docker-compose-run.sh logs` for detailed error information
-
-### Docker Compose Issues
-- Ensure Docker Compose v2.0+ is installed: `docker-compose --version`
-- Check profiles are correctly specified in command
-- Use `./docker-compose-run.sh logs` to debug service issues
-- Services will automatically restart unless stopped
-
-### Communication Issues
-- **MAVROS**: Check PX4 is outputting MAVLink on port 14557
-- **XRCE-DDS**: Ensure agent is running on port 8888
-- **Port conflicts**: Stop other MAVLink applications before starting
-- **Network**: Host networking mode should resolve most connectivity issues
-
-## Advanced Usage
-
-### Multiple Communication Bridges
+### Environment Variables
 ```bash
-# Run both MAVROS and XRCE-DDS simultaneously
-./docker-compose-run.sh up --with-mavros --with-xrce
+# User credentials (optional)
+export GIT_USER="your-username"
+export GIT_TOKEN="your-token"
 
-# This allows you to:
-# - Use MAVROS for legacy applications
-# - Use XRCE-DDS for high-performance applications
-# - Compare performance between both bridges
+# Custom workspace location
+export WORKSPACE_DIR="/path/to/your/workspace"
+
+# Force CPU mode
+export FORCE_CPU=true
 ```
 
-### Custom Service Configurations
-Edit `docker-compose.yml` to customize:
-- Port mappings
-- Environment variables
-- Volume mounts
-- Service dependencies
+### Volume Mounts
+- **Workspace**: `~/px4_ros2_jazzy_shared_volume` ↔ `/home/user/shared_volume`
+- **Display**: Automatic X11/Wayland forwarding
+- **Devices**: USB, serial, GPU devices as available
 
-### Performance Optimization
-- Use `--profile gpu` for hardware acceleration
-- Increase Docker memory limits for complex simulations
-- Use host networking for minimal latency
-- Consider running QGroundControl on host for better GUI performance
+## 🐛 Troubleshooting
 
-## Additional Resources
+### Permission Issues
+```bash
+# Check container user
+./docker-compose-run.sh shell
+id
 
-* [PX4 User Guide](https://docs.px4.io/main/en/) - Complete PX4 documentation
-* [ROS 2 Documentation](https://docs.ros.org/en/jazzy/) - ROS 2 Jazzy resources
-* [MAVROS Documentation](https://github.com/mavlink/mavros) - MAVROS setup and usage
-* [Gazebo Fuel](https://app.gazebosim.org/fuel) - Library of simulation worlds and models
-* [uav_gz_sim Repository](https://github.com/asmbatati/uav_gz_sim) - Complete simulation framework
+# Fix workspace permissions
+sudo chown -R $USER:$USER ~/px4_ros2_jazzy_shared_volume
+```
+
+### GPU Issues
+```bash
+# Check GPU detection
+nvidia-smi
+
+# Check Docker GPU support
+docker run --rm --gpus all nvidia/cuda:11.0-base nvidia-smi
+
+# Force CPU mode
+./docker-compose-run.sh up --no-gpu
+```
+
+### Display Issues
+```bash
+# Linux: Check X11 forwarding
+echo $DISPLAY
+xhost +local:docker
+
+# WSL2: Check WSLg
+echo $WAYLAND_DISPLAY
+ls /mnt/wslg
+```
+
+### Service Issues
+```bash
+# Check service status
+./docker-compose-run.sh status
+
+# View specific service logs
+docker-compose logs px4-dev
+
+# Restart specific service
+docker-compose restart px4-dev
+```
+
+## 📊 Service Architecture
+
+```mermaid
+graph TB
+    A[Host System] --> B[Docker Compose]
+    B --> C[px4-dev/px4-dev-gpu]
+    B --> D[xrce-agent]
+    B --> E[mavros-bridge]
+    B --> F[qgroundcontrol]
+    B --> G[ros2-bridge]
+    
+    C --> H[PX4 Autopilot]
+    C --> I[ROS2 Workspace]
+    C --> J[Gazebo Harmonic]
+    
+    D --> K[XRCE-DDS Protocol]
+    E --> L[MAVLink Protocol]
+    F --> M[Ground Control]
+    G --> N[External ROS2]
+```
+
+## 🔍 Advanced Usage
+
+### Custom Profiles
+```bash
+# Create custom profile combinations
+./docker-compose-run.sh up --profile gpu --profile mavros --profile qgc
+```
+
+### Development Workflow
+```bash
+# 1. Start development environment
+./docker-compose-run.sh up --profile gpu
+
+# 2. Open shell
+./docker-compose-run.sh shell
+
+# 3. Run installation
+cd /home/user/shared_volume/ros2_ws/src/uav_gz_sim
+./install.sh
+
+# 4. Build workspace
+cd /home/user/shared_volume/ros2_ws
+colcon build
+
+# 5. Run simulation
+source install/setup.bash
+ros2 launch px4_msgs px4.launch.py
+```
+
+### Multi-Container Development
+```bash
+# Terminal 1: Main development
+./docker-compose-run.sh shell
+
+# Terminal 2: MAVROS bridge
+docker-compose exec mavros-bridge bash
+
+# Terminal 3: QGroundControl
+docker-compose exec qgroundcontrol bash
+```
+
+## 🧹 Maintenance
+
+### Cleanup
+```bash
+# Remove all containers and volumes
+./docker-compose-run.sh clean
+
+# Remove specific containers
+docker-compose down
+docker system prune -f
+```
+
+### Updates
+```bash
+# Rebuild images
+./docker-compose-run.sh build
+
+# Update base images
+docker-compose pull
+```
+
+## 📝 Notes
+
+- The workspace directory is automatically created and mapped to the container
+- All services use the same shared volume for consistency
+- GPU support is automatically detected and configured
+- Permission issues are handled automatically through the entrypoint script
+- The setup works identically across Ubuntu, WSL2, and other Linux distributions
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Test across different environments (Ubuntu, WSL2, GPU/CPU)
+4. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+**Ready to fly! 🚁** Your PX4 ROS2 development environment is now configured for optimal performance across all platforms.
